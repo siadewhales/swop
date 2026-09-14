@@ -1,0 +1,17 @@
+node_modules/
+dist/
+release/
+.npm-cache/
+.electron-cache/
+.electron-builder-cache/
+.localappdata/
+.appdata/
+*.log
+.env
+.DS_Store
+
+# Material interno: no forma parte del código publicado
+.agents/
+LOGOYBRANDING/
+PROMPT_WHALES_OPERATIONS.txt
+ChatGPT Image*.png
