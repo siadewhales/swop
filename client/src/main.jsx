@@ -2978,6 +2978,7 @@ async function downloadTransactionReceipt(receipt, t) {
   page.width = 1800;
   page.height = 1120;
   const ctx = page.getContext('2d');
+  ctx.direction = 'ltr'; // el recibo mantiene su maquetación también con la app en derecha a izquierda
   ctx.fillStyle = '#0A0A0C';
   ctx.fillRect(0, 0, page.width, page.height);
   ctx.fillStyle = '#101821';

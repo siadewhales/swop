@@ -66,7 +66,7 @@ button:disabled, input:disabled, select:disabled, textarea:disabled {
   display: inline-block;
   width: 2px;
   height: .72em;
-  margin-left: 4px;
+  margin-inline-start: 4px;
   background: #f2ead5;
   vertical-align: middle;
   animation: splashCursor 800ms step-end infinite;
@@ -113,7 +113,7 @@ button:disabled, input:disabled, select:disabled, textarea:disabled {
 .sidebar {
   position: relative;
   z-index: 1;
-  border-right: 1px solid #2a3038;
+  border-inline-end: 1px solid #2a3038;
   padding: 14px 12px;
   display: flex;
   flex-direction: column;
@@ -230,7 +230,7 @@ nav { display: grid; gap: 8px; }
   position: fixed;
   z-index: 1500;
   top: 18px;
-  right: 20px;
+  inset-inline-end: 20px;
   min-height: 40px;
   border: 1px solid #2a3038;
   border-radius: 999px;
@@ -471,7 +471,7 @@ nav { display: grid; gap: 8px; }
 
 .secret-field { display: grid; gap: 8px; }
 .secret-field > span, .form-field span { color: #f5f5dc; font-weight: 700; font-size: 13px; text-transform: uppercase; }
-.secret-field b { color: #f07d87; margin-left: 10px; font-weight: 700; text-transform: none; }
+.secret-field b { color: #f07d87; margin-inline-start: 10px; font-weight: 700; text-transform: none; }
 .secret-box {
   min-height: 44px;
   border: 1px solid #2a3038;
@@ -541,7 +541,7 @@ input:focus, select:focus, textarea:focus { border-color: #f5f5dc; }
   border: 1px solid #2a3038;
   border-radius: 8px;
   background: #151b23;
-  padding-right: 6px;
+  padding-inline-end: 6px;
 }
 .input-action-field.compact { grid-template-columns: minmax(0, 1fr) minmax(120px, auto); }
 .input-action-field.scan-key-field { grid-template-columns: minmax(0, 1fr) 38px minmax(86px, auto) minmax(82px, auto); }
@@ -927,7 +927,7 @@ input:focus, select:focus, textarea:focus { border-color: #f5f5dc; }
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  text-align: left;
+  text-align: start;
   padding: 0 14px;
   font-weight: 700;
 }
@@ -951,7 +951,7 @@ input:focus, select:focus, textarea:focus { border-color: #f5f5dc; }
   font-size: 12px;
   margin: 14px 0;
 }
-.guard-panel ul { margin: 0; padding-left: 18px; display: grid; gap: 8px; }
+.guard-panel ul { margin: 0; padding-inline-start: 18px; display: grid; gap: 8px; }
 
 .language-modal { position: relative; z-index: 1; width: min(900px, 94vw); max-height: 88vh; overflow: auto; padding: 24px; display: grid; gap: 18px; justify-items: center; }
 .language-modal img { width: 120px; height: 78px; object-fit: contain; }
@@ -1037,7 +1037,7 @@ input:focus, select:focus, textarea:focus { border-color: #f5f5dc; }
   color: #87919d;
   font-size: 12px;
   line-height: 1.45;
-  text-align: left;
+  text-align: start;
 }
 .scan-pairing-note svg { flex: none; color: #f5f5dc; }
 .check-field {
@@ -1058,7 +1058,7 @@ input:focus, select:focus, textarea:focus { border-color: #f5f5dc; }
   padding: 0;
   accent-color: #f5f5dc;
 }
-.check-field span { flex: 1; text-align: left; }
+.check-field span { flex: 1; text-align: start; }
 .wc-risk {
   display: grid;
   grid-template-columns: 22px minmax(0, 1fr);
@@ -1185,7 +1185,7 @@ input:focus, select:focus, textarea:focus { border-color: #f5f5dc; }
   gap: 3px 9px;
   align-items: center;
   padding: 11px;
-  text-align: left;
+  text-align: start;
   min-height: 58px;
 }
 .live-network-list button svg {
@@ -1247,7 +1247,7 @@ input:focus, select:focus, textarea:focus { border-color: #f5f5dc; }
   body { overflow: auto; min-width: 0; }
   .app-shell { grid-template-columns: 1fr; height: auto; min-height: 100vh; }
   .sidebar { position: static; flex-direction: row; align-items: center; overflow-x: auto; }
-  .brand-mark { grid-template-columns: 64px 1fr; text-align: left; }
+  .brand-mark { grid-template-columns: 64px 1fr; text-align: start; }
   .brand-mark img { width: 64px; }
   .chain-selector { min-width: 210px; }
   nav { grid-auto-flow: column; grid-auto-columns: max-content; }
@@ -1259,3 +1259,14 @@ input:focus, select:focus, textarea:focus { border-color: #f5f5dc; }
   .token-row { grid-template-columns: 1fr; padding: 10px 0; }
   .screen-header h2 { font-size: 36px; }
 }
+
+/* Derecha a izquierda (árabe, hebreo, persa, urdu). i18n.js pone dir="rtl" en <html>: la rejilla, los flex y las
+   propiedades lógicas se reflejan solos. Aquí solo lo que no debe reflejarse: el nombre SWOP que se escribe letra a
+   letra, y los datos técnicos (direcciones, claves, hashes, cantidades), que se leen de izquierda a derecha. */
+[dir="rtl"] .splash-inner h1 { direction: ltr; }
+[dir="rtl"] input, [dir="rtl"] textarea, [dir="rtl"] code { unicode-bidi: plaintext; }
+[dir="rtl"] input, [dir="rtl"] textarea { text-align: right; }
+/* Campos de dirección y de WalletConnect: sin esto el ejemplo "0x..." se leía "...0x". */
+[dir="rtl"] input[placeholder^="0x"], [dir="rtl"] input[placeholder^="wc:"] { direction: ltr; }
+/* La fuente monoespaciada no enlaza la escritura árabe (salían letras sueltas): el texto de ayuda va en la fuente normal. */
+[dir="rtl"] input::placeholder, [dir="rtl"] textarea::placeholder { font-family: Inter, system-ui, sans-serif; }

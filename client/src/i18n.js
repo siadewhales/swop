@@ -20,6 +20,15 @@ i18n.use(initReactI18next).init({
   interpolation: { escapeValue: false }
 });
 
+// Árabe, hebreo, persa y urdu se leen de derecha a izquierda: dir="rtl" en <html> refleja toda la interfaz.
+function applyDocumentLanguage(code) {
+  if (typeof document === 'undefined') return;
+  document.documentElement.lang = code;
+  document.documentElement.dir = i18n.dir(code);
+}
+i18n.on('languageChanged', applyDocumentLanguage);
+applyDocumentLanguage(i18n.language);
+
 export async function ensureLanguage(code) {
   if (loadedLanguages.has(code)) return true;
   const loader = languageLoaders[`./locales/generated/${code}.json`];
