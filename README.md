@@ -69,11 +69,12 @@ The result is `release/SWOP-<version>-portable.exe`.
 Official builds are distributed from [siadewhales.com](https://siadewhales.com/swop.html). Check the SHA-256 of your download before running it:
 
 ```powershell
-Get-FileHash .\SWOP-2.1.0-portable.exe -Algorithm SHA256
+Get-FileHash .\SWOP-2.1.1-portable.exe -Algorithm SHA256
 ```
 
 | Version | File | SHA-256 |
 | --- | --- | --- |
+| 2.1.1 | `SWOP-2.1.1-portable.exe` | `d0ba3719e99d492ac9a4740e6d92b94497e861aca90775f8ac72fcf1fa82a410` |
 | 2.1.0 | `SWOP-2.1.0-portable.exe` | `304a9a3606977473304a78cc2b92fdce4c22786e278ba3ea4019b1e58d79e19d` |
 
 The executables are not code-signed yet, so Windows SmartScreen may show a warning.

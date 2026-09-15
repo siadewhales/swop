@@ -289,8 +289,10 @@ nav { display: grid; gap: 8px; }
 
 .center-stage { min-height: 360px; display: grid; place-items: center; gap: 18px; }
 .center-stage img { width: min(280px, 32vw); opacity: .96; }
-/* En modo lote la ballena es algo menor para que el panel quepa entero sin deslizar. */
-.center-stage.batch-mode img { width: min(190px, 22vw); }
+/* En modo lote la ballena es algo menor para que el panel quepa entero sin deslizar, también en idiomas de frases largas. */
+.center-stage.batch-mode { gap: 12px; }
+.center-stage.batch-mode img { width: min(150px, 18vw); }
+.batch-actions .primary-action, .batch-actions .secondary-action { font-size: 13px; line-height: 1.25; padding: 6px 12px; }
 .batch-panel p.batch-plain-warning { color: #f07d87; }
 .offline-advice, .offline-lock {
   width: min(680px, 100%);
