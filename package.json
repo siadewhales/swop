@@ -1,6 +1,6 @@
 {
   "name": "swop",
-  "version": "2.1.2",
+  "version": "2.1.3",
   "description": "SWOP, Siade Whales Operations Platform portable multi-network desktop app.",
   "type": "module",
   "main": "electron/main.cjs",

@@ -125,11 +125,9 @@ button:disabled, input:disabled, select:disabled, textarea:disabled {
   scrollbar-width: thin;
 }
 
-.brand-mark { display: grid; gap: 8px; justify-items: center; text-align: center; }
-.brand-mark img { width: 60px; height: 44px; object-fit: contain; }
-.brand-mark h1, .brand-mark span { margin: 0; font-family: Cormorant, serif; color: #f5f5dc; letter-spacing: 0; }
-.brand-mark h1 { font-size: 21px; line-height: .9; }
-.brand-mark span { font-size: 9.5px; line-height: 1.18; }
+/* Logotipo completo de SWOP (ballena + nombre), con el mismo estilo plateado que la web. */
+.brand-mark { display: grid; justify-items: center; padding: 4px 0 2px; }
+.brand-mark img { display: block; width: 100%; max-width: 160px; height: auto; }
 
 nav { display: grid; gap: 8px; }
 .nav-button, .language-pill {
@@ -1247,8 +1245,8 @@ input:focus, select:focus, textarea:focus { border-color: #f5f5dc; }
   body { overflow: auto; min-width: 0; }
   .app-shell { grid-template-columns: 1fr; height: auto; min-height: 100vh; }
   .sidebar { position: static; flex-direction: row; align-items: center; overflow-x: auto; }
-  .brand-mark { grid-template-columns: 64px 1fr; text-align: start; }
-  .brand-mark img { width: 64px; }
+  .brand-mark { flex: 0 0 auto; padding: 0; }
+  .brand-mark img { width: 132px; }
   .chain-selector { min-width: 210px; }
   nav { grid-auto-flow: column; grid-auto-columns: max-content; }
   .main-panel { height: auto; overflow: visible; padding: 24px; padding-bottom: 80px; }

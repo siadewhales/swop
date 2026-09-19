@@ -7,6 +7,7 @@ import './styles.css';
 import { changeAppLanguage } from './i18n';
 import { useTranslation } from 'react-i18next';
 import logoWhale from './assets/logo-whale.png';
+import swopLogo from './assets/swop-logo.png';
 import { checkVersionGate } from './services/versionGuard';
 import { analyzeTokenRisk } from './services/security';
 import { DEFAULT_NETWORK_ID, NATIVE_ASSET_ID, getChainById, getExplorerTxUrl, getNetworkById, getNetworksByMode, isEvmNetwork } from './services/chains';
@@ -328,11 +329,7 @@ function App() {
       )}
       <aside className="sidebar">
         <div className="brand-mark">
-          <img src={logoWhale} alt="SWOP" />
-          <div>
-            <h1>SWOP</h1>
-            <span>SIADE WHALES OPERATIONS PLATFORM</span>
-          </div>
+          <img src={swopLogo} alt="SWOP" />
         </div>
         <nav>
           <NavButton active={view === 'vault'} icon={<KeyRound />} label={t('vault.nav')} onClick={() => setView('vault')} />
@@ -2778,24 +2775,19 @@ function buildPaperWalletOcrText({ wallet, accounts, t, walletLabel, mode }) {
 }
 
 async function svgToPngBlob(svg, width, height) {
-  const svgBlob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
-  const svgUrl = URL.createObjectURL(svgBlob);
-  try {
-    const image = await loadImage(svgUrl);
-    const canvas = document.createElement('canvas');
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(image, 0, 0, width, height);
-    return await new Promise((resolve, reject) => {
-      canvas.toBlob((blob) => {
-        if (blob) resolve(blob);
-        else reject(new Error('PNG export failed'));
-      }, 'image/png');
-    });
-  } finally {
-    URL.revokeObjectURL(svgUrl);
-  }
+  // La política de imágenes de la app (CSP img-src) no admite direcciones blob:; el SVG entra como data:.
+  const image = await loadImage(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`);
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(image, 0, 0, width, height);
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) resolve(blob);
+      else reject(new Error('PNG export failed'));
+    }, 'image/png');
+  });
 }
 
 function downloadTextFile(text, filename) {
@@ -2814,7 +2806,6 @@ function downloadBlob(blob, filename) {
 function buildPaperWalletSvg({ wallet, accounts, qrById, logoDataUrl, t, walletLabel, mode }) {
   const isPublic = mode === 'public';
   const isPrivate = mode === 'private';
-  const isFull = mode === 'full';
   const title = isPublic
     ? t('vault.publicDocumentTitle')
     : isPrivate
@@ -2822,23 +2813,20 @@ function buildPaperWalletSvg({ wallet, accounts, qrById, logoDataUrl, t, walletL
       : t('vault.fullDocumentTitle');
   const label = walletLabel.trim();
   const networkLine = accounts.map((account) => `${account.title} - ${account.symbols}`).join(' / ');
-  const rows = accounts.map((account, index) => {
-    const x = 120 + (index * 540);
-    const y = 355;
-    return renderPaperAccount({ account, qr: qrById[account.id], x, y, mode, t });
-  }).join('');
-  const seedPanel = !isPublic ? renderSvgPanel({
-    x: 120,
-    y: 860,
-    width: 1560,
-    height: 128,
-    title: t('vault.seedPhrase'),
-    value: wallet.seedPhrase || wallet.mnemonic?.phrase || '',
-    danger: true,
-    chunk: 92
-  }) : renderSvgTextBlock(120, 884, [
-    t('vault.publicDocumentHint')
-  ], 'muted', 28);
+  // Cada cartera tiene una red: tarjeta ancha con el QR a la izquierda y los datos a la derecha.
+  // Si hubiera varias cuentas, se reparten en columnas y cada tarjeta apila el QR encima de los datos.
+  const count = Math.max(1, accounts.length);
+  const cardWidth = count === 1 ? 1040 : Math.floor((1560 - (count - 1) * 30) / count);
+  const cards = accounts.map((account, index) => renderPaperAccount({
+    account, qr: qrById[account.id], x: 120 + index * (cardWidth + 30), y: 340, width: cardWidth, mode, t
+  }));
+  const cardsBottom = Math.max(340, ...cards.map((card) => card.bottom));
+  const blockWidth = count === 1 ? cardWidth : 1560;
+  const lower = isPublic
+    ? { svg: '', bottom: cardsBottom }
+    : renderSeedGrid({ x: 120, y: cardsBottom + 30, width: blockWidth, title: t('vault.seedPhrase'), phrase: wallet.seedPhrase || wallet.mnemonic?.phrase || '' });
+  // El bloque de datos se centra en vertical entre la cabecera y el pie.
+  const offset = Math.max(0, Math.floor((975 - lower.bottom) / 2));
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1120" viewBox="0 0 1800 1120" role="img" aria-label="${escapeXml(title)}">
@@ -2847,7 +2835,10 @@ function buildPaperWalletSvg({ wallet, accounts, qrById, logoDataUrl, t, walletL
     .stroke{fill:none;stroke:#F5F5DC;stroke-width:4}.inner{fill:none;stroke:#2A3038;stroke-width:2}
     .panel{fill:#0D1218;stroke:#2A3038;stroke-width:2}.panel-danger{fill:#0D1218;stroke:#C42638;stroke-width:2}
     .serif{font-family:Georgia,serif;font-weight:700}.sans{font-family:Arial,sans-serif}.mono{font-family:"Courier New",monospace}
-    .label{font-family:Arial,sans-serif;font-size:18px;font-weight:700;fill:#F5F5DC}.value{font-family:"Courier New",monospace;font-size:17px;fill:#E8E8E8}
+    .label{font-family:Arial,sans-serif;font-size:18px;font-weight:700;fill:#F5F5DC}.label.danger{fill:#F07D87}
+    .value{font-family:"Courier New",monospace;font-size:17px;fill:#E8E8E8}
+    .hint{font-family:Arial,sans-serif;font-size:22px;fill:#AEB7C2}
+    .seed-n{font-family:"Courier New",monospace;font-size:16px;fill:#87919D}.seed-w{font-family:"Courier New",monospace;font-size:21px;font-weight:700;fill:#F5F5DC}
   </style>
   <rect class="bg" width="1800" height="1120"/>
   <rect class="sheet" x="36" y="36" width="1728" height="1048"/>
@@ -2856,59 +2847,91 @@ function buildPaperWalletSvg({ wallet, accounts, qrById, logoDataUrl, t, walletL
   <circle cx="1420" cy="660" r="280" fill="none" stroke="rgba(245,245,220,.05)" stroke-width="2"/>
   <circle cx="1330" cy="710" r="380" fill="none" stroke="rgba(245,245,220,.04)" stroke-width="2"/>
   <image href="${escapeXml(logoDataUrl)}" x="1338" y="82" width="282" height="176" opacity=".95"/>
-  <image href="${escapeXml(logoDataUrl)}" x="1020" y="220" width="610" height="390" opacity=".14"/>
+  <image href="${escapeXml(logoDataUrl)}" x="1100" y="${340 + offset}" width="560" height="358" opacity=".12"/>
   <text x="120" y="170" class="cream serif" font-size="104">SWOP</text>
   <text x="120" y="222" class="cream sans" font-size="34">SIADE WHALES OPERATIONS PLATFORM</text>
   <text x="122" y="262" class="muted sans" font-size="22">${escapeXml(title).toUpperCase()}</text>
   <text x="122" y="294" class="cream sans" font-size="22" font-weight="700">siadewhales.com</text>
   <rect x="1288" y="276" width="332" height="48" rx="24" fill="none" stroke="#F5F5DC" stroke-width="2"/>
   <text x="1454" y="307" text-anchor="middle" class="cream sans" font-size="18" font-weight="700">OCR READY IMAGE</text>
-  ${label ? `<rect x="690" y="288" width="520" height="46" rx="23" fill="none" stroke="#F5F5DC" stroke-width="2"/><text x="950" y="318" text-anchor="middle" class="cream sans" font-size="18" font-weight="700">${escapeXml(label.toUpperCase())}</text>` : ''}
-  ${rows}
-  ${seedPanel}
-  <text x="120" y="1034" class="cream sans" font-size="20" font-weight="700">${new Date().toISOString().slice(0, 10)}</text>
-  <text x="1210" y="1034" class="cream sans" font-size="20" font-weight="700">${escapeXml(networkLine)}</text>
-  <text x="1210" y="1062" class="muted sans" font-size="18">siadewhales.com</text>
+  ${label ? `<rect x="690" y="276" width="520" height="48" rx="24" fill="none" stroke="#F5F5DC" stroke-width="2"/><text x="950" y="307" text-anchor="middle" class="cream sans" font-size="18" font-weight="700">${escapeXml(label.toUpperCase())}</text>` : ''}
+  <g transform="translate(0 ${offset})">
+    ${cards.map((card) => card.svg).join('')}
+    ${lower.svg}
+  </g>
+  <text x="120" y="1008" class="cream sans" font-size="20" font-weight="700">${new Date().toISOString().slice(0, 10)}</text>
+  <text x="900" y="1008" text-anchor="middle" class="muted sans" font-size="18">siadewhales.com</text>
+  <text x="1680" y="1008" text-anchor="end" class="cream sans" font-size="20" font-weight="700">${escapeXml(networkLine)}</text>
 </svg>`;
 }
 
-function renderPaperAccount({ account, qr, x, y, mode, t }) {
+function renderPaperAccount({ account, qr, x, y, width, mode, t }) {
   const isPublic = mode === 'public';
   const isPrivate = mode === 'private';
-  const isFull = mode === 'full';
+  const wide = width >= 900;
   const title = `${account.title} - ${account.symbols}`;
+  const qrBox = isPrivate ? 0 : (isPublic ? 300 : 232);
+  const top = y + 96;
+  const qrX = wide ? x + 26 : x + Math.round((width - qrBox) / 2);
+  const panelX = wide && qrBox ? x + 26 + qrBox + 30 : x + 22;
+  const panelWidth = x + width - (wide ? 26 : 22) - panelX;
+  // Courier New a 17 px mide 10,2 px por carácter: se corta cada línea para que no se salga del recuadro.
+  const chunk = Math.max(16, Math.floor((panelWidth - 38) / 10.2));
+  let panelY = wide || !qrBox ? top : top + qrBox + 18;
   const panels = [];
-  if (!isPrivate) {
-    panels.push(renderSvgPanel({
-      x: x + 22,
-      y: y + (isFull ? 180 : 260),
-      width: 456,
-      height: isFull ? 92 : 118,
-      title: t('vault.publicAddress'),
-      value: account.address,
-      chunk: account.family === 'evm' ? 42 : 38
-    }));
+  const addPanel = (panelTitle, value, danger) => {
+    const lines = splitForSvg(value, chunk).length;
+    const height = 60 + lines * 24;
+    panels.push(renderSvgPanel({ x: panelX, y: panelY, width: panelWidth, height, title: panelTitle, value, danger, chunk }));
+    panelY += height + 16;
+  };
+  if (!isPrivate) addPanel(t('vault.publicAddress'), account.address, false);
+  if (!isPublic) addPanel(formatPrivateKeyLabel(account, t), account.privateKey, true);
+  // En el documento público el aviso va dentro de la tarjeta, junto a la dirección, para que no quede hueco.
+  let hintSvg = '';
+  if (isPublic) {
+    const hint = splitForSvg(t('vault.publicDocumentHint'), Math.max(24, Math.floor(panelWidth / 12.2)));
+    hintSvg = renderSvgTextBlock(panelX + 4, panelY + 18, hint, 'hint', 30);
+    panelY += 18 + hint.length * 30;
   }
-  if (!isPublic) {
-    panels.push(renderSvgPanel({
-      x: x + 22,
-      y: y + (isFull ? 292 : 150),
-      width: 456,
-      height: isFull ? 142 : 206,
-      title: formatPrivateKeyLabel(account, t),
-      value: account.privateKey,
-      danger: true,
-      chunk: 38
-    }));
-  }
-  return `
-  <g>
-    <rect x="${x}" y="${y}" width="500" height="475" rx="18" class="${isPrivate ? 'panel-danger' : 'panel'}"/>
-    <text x="${x + 26}" y="${y + 42}" class="cream sans" font-size="25" font-weight="700">${escapeXml(title)}</text>
-    <text x="${x + 26}" y="${y + 72}" class="muted mono" font-size="15">${escapeXml(account.path)}</text>
-    ${!isPrivate ? `<rect x="${x + 142}" y="${y + 92}" width="216" height="216" rx="14" fill="#F5F5DC"/><image href="${escapeXml(qr)}" x="${x + 160}" y="${y + 110}" width="180" height="180"/>` : ''}
-    ${panels.join('')}
-  </g>`;
+  const contentBottom = Math.max(panelY - 16, wide && qrBox ? top + qrBox : 0);
+  const bottom = contentBottom + 28;
+  const qrSvg = qrBox
+    ? `<rect x="${qrX}" y="${top}" width="${qrBox}" height="${qrBox}" rx="14" fill="#F5F5DC"/><image href="${escapeXml(qr)}" x="${qrX + 16}" y="${top + 16}" width="${qrBox - 32}" height="${qrBox - 32}"/>`
+    : '';
+  return {
+    bottom,
+    svg: `
+    <g>
+      <rect x="${x}" y="${y}" width="${width}" height="${bottom - y}" rx="18" class="${isPrivate ? 'panel-danger' : 'panel'}"/>
+      <text x="${x + 26}" y="${y + 44}" class="cream sans" font-size="26" font-weight="700">${escapeXml(title)}</text>
+      <text x="${x + 26}" y="${y + 74}" class="muted mono" font-size="15">${escapeXml(account.path)}</text>
+      ${qrSvg}
+      ${panels.join('')}
+      ${hintSvg}
+    </g>`
+  };
+}
+
+// Frase de recuperación en cuadrícula numerada (6 columnas), más fácil de copiar a mano sin saltarse palabras.
+function renderSeedGrid({ x, y, width, title, phrase }) {
+  const words = String(phrase || '').trim().split(/\s+/).filter(Boolean);
+  const columns = 6;
+  const rows = Math.max(1, Math.ceil(words.length / columns));
+  const cellWidth = (width - 36) / columns;
+  const height = 72 + rows * 40;
+  const cells = words.map((word, index) => {
+    const cellX = Math.round(x + 18 + (index % columns) * cellWidth);
+    const cellY = y + 78 + Math.floor(index / columns) * 40;
+    return `<text x="${cellX}" y="${cellY}" class="seed-n">${String(index + 1).padStart(2, '0')}</text><text x="${cellX + 34}" y="${cellY}" class="seed-w">${escapeXml(word)}</text>`;
+  }).join('');
+  return {
+    bottom: y + height,
+    svg: `
+    <rect x="${x}" y="${y}" width="${width}" height="${height}" rx="12" class="panel-danger"/>
+    <text x="${x + 18}" y="${y + 34}" class="label danger">${escapeXml(title).toUpperCase()}</text>
+    ${cells}`
+  };
 }
 
 function renderSvgPanel({ x, y, width, height, title, value, danger = false, chunk = 44 }) {
