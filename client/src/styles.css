@@ -1,10 +1,24 @@
 :root {
   color: #e8e8e8;
   background: #0d1218;
+  color-scheme: dark;
   font-family: "Space Grotesk", system-ui, sans-serif;
   font-synthesis: none;
   text-rendering: geometricPrecision;
 }
+
+/* Barras de desplazamiento: las del navegador salían con el fondo blanco. Aquí el carril es transparente
+   (se ve el fondo de la app) y solo se ve el tirador gris. */
+* { scrollbar-width: thin; scrollbar-color: #3a424e transparent; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: #3a424e;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover { background: #4d5766; background-clip: padding-box; }
 
 * { box-sizing: border-box; }
 html, body, #root { height: 100%; }

@@ -2674,17 +2674,19 @@ async function downloadPaperWallet(wallet, t, walletLabel = '', mode = 'full') {
   const safeLabel = walletLabel.trim().replace(/[^a-z0-9_-]+/gi, '-').replace(/^-|-$/g, '');
   const firstAccount = accounts[0] || wallet;
   const fileBase = `SWOP-paper-wallet-${mode}-${safeLabel ? `${safeLabel}-` : ''}${String(firstAccount.address || wallet.address || 'wallet').slice(0, 8)}`;
-  const [logoDataUrl, qrEntries] = await Promise.all([
-    assetToDataUrl(logoWhale),
+  const qrOptions = { margin: 1, width: 460, color: { dark: '#0D1218', light: '#F5F5DC' } };
+  const [logoDataUrl, publicQrEntries, privateQrEntries] = await Promise.all([
+    assetToDataUrl(swopLogo),
     needsQr
-      ? Promise.all(accounts.map(async (account) => [
-        account.id,
-        await QRCode.toDataURL(account.address, { margin: 1, width: 220, color: { dark: '#0D1218', light: '#F5F5DC' } })
-      ]))
+      ? Promise.all(accounts.map(async (account) => [account.id, await QRCode.toDataURL(account.address, qrOptions)]))
+      : [],
+    mode !== 'public'
+      ? Promise.all(accounts.map(async (account) => [account.id, await QRCode.toDataURL(account.privateKey, qrOptions)]))
       : []
   ]);
-  const qrById = Object.fromEntries(qrEntries);
-  const svg = buildPaperWalletSvg({ wallet, accounts, qrById, logoDataUrl, t, walletLabel, mode });
+  const qrById = Object.fromEntries(publicQrEntries);
+  const qrPrivateById = Object.fromEntries(privateQrEntries);
+  const svg = buildPaperWalletSvg({ wallet, accounts, qrById, qrPrivateById, logoDataUrl, t, walletLabel, mode });
   const pngBlob = await svgToPngBlob(svg, 1800, 1120);
   downloadBlob(pngBlob, `${fileBase}.png`);
   downloadTextFile(buildPaperWalletOcrText({ wallet, accounts, t, walletLabel, mode }), `${fileBase}-OCR.txt`);
@@ -2803,30 +2805,39 @@ function downloadBlob(blob, filename) {
   window.setTimeout(() => URL.revokeObjectURL(href), 1000);
 }
 
-function buildPaperWalletSvg({ wallet, accounts, qrById, logoDataUrl, t, walletLabel, mode }) {
+function buildPaperWalletSvg({ wallet, accounts, qrById, qrPrivateById, logoDataUrl, t, walletLabel, mode }) {
   const isPublic = mode === 'public';
-  const isPrivate = mode === 'private';
   const title = isPublic
     ? t('vault.publicDocumentTitle')
-    : isPrivate
+    : mode === 'private'
       ? t('vault.privateDocumentTitle')
       : t('vault.fullDocumentTitle');
   const label = walletLabel.trim();
   const networkLine = accounts.map((account) => `${account.title} - ${account.symbols}`).join(' / ');
-  // Cada cartera tiene una red: tarjeta ancha con el QR a la izquierda y los datos a la derecha.
-  // Si hubiera varias cuentas, se reparten en columnas y cada tarjeta apila el QR encima de los datos.
+  // Cada cartera tiene una red: una tarjeta ancha que ocupa la hoja entera.
+  // Si hubiera varias cuentas, se reparten en columnas y cada una apila el QR encima de los datos.
   const count = Math.max(1, accounts.length);
-  const cardWidth = count === 1 ? 1040 : Math.floor((1560 - (count - 1) * 30) / count);
+  const cardWidth = count === 1 ? 1560 : Math.floor((1560 - (count - 1) * 30) / count);
   const cards = accounts.map((account, index) => renderPaperAccount({
-    account, qr: qrById[account.id], x: 120 + index * (cardWidth + 30), y: 340, width: cardWidth, mode, t
+    account,
+    qr: qrById[account.id],
+    qrPrivate: qrPrivateById[account.id],
+    x: 120 + index * (cardWidth + 30),
+    y: 360,
+    width: cardWidth,
+    mode,
+    t
   }));
-  const cardsBottom = Math.max(340, ...cards.map((card) => card.bottom));
-  const blockWidth = count === 1 ? cardWidth : 1560;
+  const cardsBottom = Math.max(360, ...cards.map((card) => card.bottom));
   const lower = isPublic
     ? { svg: '', bottom: cardsBottom }
-    : renderSeedGrid({ x: 120, y: cardsBottom + 30, width: blockWidth, title: t('vault.seedPhrase'), phrase: wallet.seedPhrase || wallet.mnemonic?.phrase || '' });
-  // El bloque de datos se centra en vertical entre la cabecera y el pie.
-  const offset = Math.max(0, Math.floor((975 - lower.bottom) / 2));
+    : renderSeedGrid({ x: 120, y: cardsBottom + 28, width: 1560, title: t('vault.seedPhrase'), phrase: wallet.seedPhrase || wallet.mnemonic?.phrase || '' });
+  // Si el contenido no cabe en la hoja (por ejemplo con frases de 24 palabras) se reduce en bloque, sin deformarlo.
+  const escala = lower.bottom > 975 ? (975 - 360) / (lower.bottom - 360) : 1;
+  const margen = 120 + (1560 - 1560 * escala) / 2;
+  const encaje = escala < 1
+    ? ` transform="translate(${(margen - 120 * escala).toFixed(2)} ${(360 - 360 * escala).toFixed(2)}) scale(${escala.toFixed(4)})"`
+    : '';
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1120" viewBox="0 0 1800 1120" role="img" aria-label="${escapeXml(title)}">
@@ -2834,79 +2845,80 @@ function buildPaperWalletSvg({ wallet, accounts, qrById, logoDataUrl, t, walletL
     .bg{fill:#0A0A0C}.sheet{fill:#101821}.cream{fill:#F5F5DC}.muted{fill:#AEB7C2}.danger{fill:#F07D87}
     .stroke{fill:none;stroke:#F5F5DC;stroke-width:4}.inner{fill:none;stroke:#2A3038;stroke-width:2}
     .panel{fill:#0D1218;stroke:#2A3038;stroke-width:2}.panel-danger{fill:#0D1218;stroke:#C42638;stroke-width:2}
-    .serif{font-family:Georgia,serif;font-weight:700}.sans{font-family:Arial,sans-serif}.mono{font-family:"Courier New",monospace}
-    .label{font-family:Arial,sans-serif;font-size:18px;font-weight:700;fill:#F5F5DC}.label.danger{fill:#F07D87}
-    .value{font-family:"Courier New",monospace;font-size:17px;fill:#E8E8E8}
+    .sans{font-family:Arial,sans-serif}.mono{font-family:"Courier New",monospace}
+    .label{font-family:Arial,sans-serif;font-size:19px;font-weight:700;fill:#F5F5DC}.label.danger{fill:#F07D87}
+    .value{font-family:"Courier New",monospace;font-size:19px;fill:#E8E8E8}
     .hint{font-family:Arial,sans-serif;font-size:22px;fill:#AEB7C2}
-    .seed-n{font-family:"Courier New",monospace;font-size:16px;fill:#87919D}.seed-w{font-family:"Courier New",monospace;font-size:21px;font-weight:700;fill:#F5F5DC}
+    .seed-n{font-family:"Courier New",monospace;font-size:17px;fill:#87919D}.seed-w{font-family:"Courier New",monospace;font-size:23px;font-weight:700;fill:#F5F5DC}
   </style>
   <rect class="bg" width="1800" height="1120"/>
   <rect class="sheet" x="36" y="36" width="1728" height="1048"/>
   <rect class="stroke" x="58" y="58" width="1684" height="1004"/>
   <rect class="inner" x="82" y="82" width="1636" height="956"/>
-  <circle cx="1420" cy="660" r="280" fill="none" stroke="rgba(245,245,220,.05)" stroke-width="2"/>
-  <circle cx="1330" cy="710" r="380" fill="none" stroke="rgba(245,245,220,.04)" stroke-width="2"/>
-  <image href="${escapeXml(logoDataUrl)}" x="1338" y="82" width="282" height="176" opacity=".95"/>
-  <image href="${escapeXml(logoDataUrl)}" x="1100" y="${340 + offset}" width="560" height="358" opacity=".12"/>
-  <text x="120" y="170" class="cream serif" font-size="104">SWOP</text>
-  <text x="120" y="222" class="cream sans" font-size="34">SIADE WHALES OPERATIONS PLATFORM</text>
-  <text x="122" y="262" class="muted sans" font-size="22">${escapeXml(title).toUpperCase()}</text>
-  <text x="122" y="294" class="cream sans" font-size="22" font-weight="700">siadewhales.com</text>
-  <rect x="1288" y="276" width="332" height="48" rx="24" fill="none" stroke="#F5F5DC" stroke-width="2"/>
-  <text x="1454" y="307" text-anchor="middle" class="cream sans" font-size="18" font-weight="700">OCR READY IMAGE</text>
-  ${label ? `<rect x="690" y="276" width="520" height="48" rx="24" fill="none" stroke="#F5F5DC" stroke-width="2"/><text x="950" y="307" text-anchor="middle" class="cream sans" font-size="18" font-weight="700">${escapeXml(label.toUpperCase())}</text>` : ''}
-  <g transform="translate(0 ${offset})">
+  <image href="${escapeXml(logoDataUrl)}" x="120" y="112" width="470" height="158"/>
+  <text x="124" y="312" class="muted sans" font-size="24">${escapeXml(title).toUpperCase()}</text>
+  <text x="124" y="344" class="cream sans" font-size="22" font-weight="700">siadewhales.com</text>
+  ${label ? `<rect x="1160" y="150" width="520" height="56" rx="28" fill="none" stroke="#F5F5DC" stroke-width="2"/><text x="1420" y="187" text-anchor="middle" class="cream sans" font-size="22" font-weight="700">${escapeXml(label.toUpperCase())}</text>` : ''}
+  <g${encaje}>
     ${cards.map((card) => card.svg).join('')}
     ${lower.svg}
   </g>
-  <text x="120" y="1008" class="cream sans" font-size="20" font-weight="700">${new Date().toISOString().slice(0, 10)}</text>
-  <text x="900" y="1008" text-anchor="middle" class="muted sans" font-size="18">siadewhales.com</text>
-  <text x="1680" y="1008" text-anchor="end" class="cream sans" font-size="20" font-weight="700">${escapeXml(networkLine)}</text>
+  <text x="1680" y="1010" text-anchor="end" class="cream sans" font-size="22" font-weight="700">${escapeXml(networkLine)}</text>
 </svg>`;
 }
 
-function renderPaperAccount({ account, qr, x, y, width, mode, t }) {
+function renderPaperAccount({ account, qr, qrPrivate, x, y, width, mode, t }) {
   const isPublic = mode === 'public';
   const isPrivate = mode === 'private';
-  const wide = width >= 900;
   const title = `${account.title} - ${account.symbols}`;
-  const qrBox = isPrivate ? 0 : (isPublic ? 300 : 232);
-  const top = y + 96;
-  const qrX = wide ? x + 26 : x + Math.round((width - qrBox) / 2);
-  const panelX = wide && qrBox ? x + 26 + qrBox + 30 : x + 22;
-  const panelWidth = x + width - (wide ? 26 : 22) - panelX;
-  // Courier New a 17 px mide 10,2 px por carácter: se corta cada línea para que no se salga del recuadro.
-  const chunk = Math.max(16, Math.floor((panelWidth - 38) / 10.2));
-  let panelY = wide || !qrBox ? top : top + qrBox + 18;
+  const addressLabel = t('vault.publicAddress');
+  const privateLabel = formatPrivateKeyLabel(account, t);
+  // Códigos QR: la dirección en los documentos con parte pública y la clave en los que llevan la privada.
+  const codes = [];
+  if (!isPrivate && qr) codes.push({ image: qr, caption: addressLabel, size: isPublic ? 460 : 300 });
+  if (!isPublic && qrPrivate) codes.push({ image: qrPrivate, caption: privateLabel, size: 300 });
+  const top = y + 74;
+  const codesWidth = codes.reduce((total, code, index) => total + code.size + (index ? 26 : 0), 0);
+  const panelX = x + 26 + (codesWidth ? codesWidth + 36 : 0);
+  const panelWidth = x + width - 26 - panelX;
+  // Courier New a 19 px mide 11,4 px por carácter: se corta cada línea para que no se salga del recuadro.
+  const chunk = Math.max(16, Math.floor((panelWidth - 38) / 11.4));
+  let panelY = top;
   const panels = [];
   const addPanel = (panelTitle, value, danger) => {
     const lines = splitForSvg(value, chunk).length;
-    const height = 60 + lines * 24;
+    const height = 64 + lines * 26;
     panels.push(renderSvgPanel({ x: panelX, y: panelY, width: panelWidth, height, title: panelTitle, value, danger, chunk }));
-    panelY += height + 16;
+    panelY += height + 18;
   };
-  if (!isPrivate) addPanel(t('vault.publicAddress'), account.address, false);
-  if (!isPublic) addPanel(formatPrivateKeyLabel(account, t), account.privateKey, true);
-  // En el documento público el aviso va dentro de la tarjeta, junto a la dirección, para que no quede hueco.
+  if (!isPrivate) addPanel(addressLabel, account.address, false);
+  if (!isPublic) addPanel(privateLabel, account.privateKey, true);
+  // En el documento público el aviso va dentro de la tarjeta, junto a la dirección.
   let hintSvg = '';
   if (isPublic) {
     const hint = splitForSvg(t('vault.publicDocumentHint'), Math.max(24, Math.floor(panelWidth / 12.2)));
-    hintSvg = renderSvgTextBlock(panelX + 4, panelY + 18, hint, 'hint', 30);
-    panelY += 18 + hint.length * 30;
+    hintSvg = renderSvgTextBlock(panelX + 4, panelY + 20, hint, 'hint', 32);
+    panelY += 20 + hint.length * 32;
   }
-  const contentBottom = Math.max(panelY - 16, wide && qrBox ? top + qrBox : 0);
-  const bottom = contentBottom + 28;
-  const qrSvg = qrBox
-    ? `<rect x="${qrX}" y="${top}" width="${qrBox}" height="${qrBox}" rx="14" fill="#F5F5DC"/><image href="${escapeXml(qr)}" x="${qrX + 16}" y="${top + 16}" width="${qrBox - 32}" height="${qrBox - 32}"/>`
-    : '';
+  let codeX = x + 26;
+  const codesSvg = codes.map((code) => {
+    const svg = `
+      <rect x="${codeX}" y="${top}" width="${code.size}" height="${code.size}" rx="16" fill="#F5F5DC"/>
+      <image href="${escapeXml(code.image)}" x="${codeX + 18}" y="${top + 18}" width="${code.size - 36}" height="${code.size - 36}"/>
+      <text x="${codeX + code.size / 2}" y="${top + code.size + 32}" text-anchor="middle" class="label${code.caption === privateLabel ? ' danger' : ''}">${escapeXml(code.caption).toUpperCase()}</text>`;
+    codeX += code.size + 26;
+    return svg;
+  }).join('');
+  const codesBottom = codes.length ? top + Math.max(...codes.map((code) => code.size)) + 44 : 0;
+  const bottom = Math.max(panelY - 18, codesBottom) + 30;
+
   return {
     bottom,
     svg: `
     <g>
       <rect x="${x}" y="${y}" width="${width}" height="${bottom - y}" rx="18" class="${isPrivate ? 'panel-danger' : 'panel'}"/>
-      <text x="${x + 26}" y="${y + 44}" class="cream sans" font-size="26" font-weight="700">${escapeXml(title)}</text>
-      <text x="${x + 26}" y="${y + 74}" class="muted mono" font-size="15">${escapeXml(account.path)}</text>
-      ${qrSvg}
+      <text x="${x + 26}" y="${y + 48}" class="cream sans" font-size="28" font-weight="700">${escapeXml(title)}</text>
+      ${codesSvg}
       ${panels.join('')}
       ${hintSvg}
     </g>`
@@ -2919,17 +2931,17 @@ function renderSeedGrid({ x, y, width, title, phrase }) {
   const columns = 6;
   const rows = Math.max(1, Math.ceil(words.length / columns));
   const cellWidth = (width - 36) / columns;
-  const height = 72 + rows * 40;
+  const height = 76 + rows * 42;
   const cells = words.map((word, index) => {
-    const cellX = Math.round(x + 18 + (index % columns) * cellWidth);
-    const cellY = y + 78 + Math.floor(index / columns) * 40;
-    return `<text x="${cellX}" y="${cellY}" class="seed-n">${String(index + 1).padStart(2, '0')}</text><text x="${cellX + 34}" y="${cellY}" class="seed-w">${escapeXml(word)}</text>`;
+    const cellX = Math.round(x + 20 + (index % columns) * cellWidth);
+    const cellY = y + 84 + Math.floor(index / columns) * 42;
+    return `<text x="${cellX}" y="${cellY}" class="seed-n">${String(index + 1).padStart(2, '0')}</text><text x="${cellX + 36}" y="${cellY}" class="seed-w">${escapeXml(word)}</text>`;
   }).join('');
   return {
     bottom: y + height,
     svg: `
     <rect x="${x}" y="${y}" width="${width}" height="${height}" rx="12" class="panel-danger"/>
-    <text x="${x + 18}" y="${y + 34}" class="label danger">${escapeXml(title).toUpperCase()}</text>
+    <text x="${x + 20}" y="${y + 38}" class="label danger">${escapeXml(title).toUpperCase()}</text>
     ${cells}`
   };
 }
